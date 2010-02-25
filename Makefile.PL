@@ -2,7 +2,7 @@ use inc::Module::Install;
 name 'Archive-Zip-Uncompressed';
 all_from 'lib/Archive/Zip/Uncompressed.pm';
 
-# requires '';
+test_requires 'Test::Requires';
 
 tests 't/*.t t/*/*.t t/*/*/*.t t/*/*/*/*.t';
 test_requires 'Test::More';

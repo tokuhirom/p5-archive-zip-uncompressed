@@ -30,3 +30,7 @@ kazeburo
 daisuke
 maki
 TODO
+MP3
+JPEG
+FAQ
+XS
