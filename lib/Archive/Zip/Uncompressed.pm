@@ -15,9 +15,9 @@ package #
 use File::stat;
 use Fcntl ':seek';
 use constant {
-    HEADER_SIZE => 30,
+    HEADER_SIZE         => 30,
     CENTRAL_HEADER_SIZE => 46,
-    END_HEADER_SIZE => 22,
+    END_HEADER_SIZE     => 22,
 };
 
 sub unpack_16 { unpack 'v', shift }
@@ -29,20 +29,29 @@ sub new {
     if (ref $file eq 'GLOB' || ref $file eq 'IO') {
         $fh = $file;
     } else {
-        open $fh, '>', $file or die "Cannot open archive file: $!";
+        open $fh, '<', $file or die "Cannot open archive file: $!";
     }
 
     # read END header
-    seek($fh, -(END_HEADER_SIZE), SEEK_END) or Carp::croak("seek: $!");
+    my $size = -s $file;
+    seek($fh, -(END_HEADER_SIZE), SEEK_END) or Carp::croak("seek to end header: $!");
     read($fh, my $end_cent_buf, END_HEADER_SIZE) == END_HEADER_SIZE or Carp::croak("cannot read end header");
     substr($end_cent_buf, 0, 4) eq "\x50\x4B\x05\x06" or Carp::croak("invalid end-of-central-directory-header");
     my $member_num = unpack_16(substr($end_cent_buf,  8, 2));
     my $dirsize    = unpack_16(substr($end_cent_buf, 12, 4));
     my $startpos   = unpack_16(substr($end_cent_buf, 16, 4));
+        #  0 "\x50\x4B\x05\x06",    # unsigned int signature;
+        #  4 pack_16(0),            # unsigned short disknum;
+        #  6 pack_16(0),            # unsigned short startdisknum;
+        #  8 pack_16($member_num),  # unsigned short diskdirentry;
+        # 10 pack_16($member_num),  # unsigned short direntry;
+        # 12 pack_32($dirsize),     # unsigned int dirsize;
+        # 16 pack_32($startpos),    # unsigned int startpos;
+        # 20 pack_16(0),            # unsigned short commentlen;
 
     my $self = bless {
         fh              => $fh,
-        size            => -s $file,
+        size            => $size,
         member_num      => $member_num,
         dirsize         => $dirsize,
         startpos        => $startpos,
@@ -60,11 +69,17 @@ sub next {
     # seek to head of central header
     seek($self->{fh}, $self->{next_central}, SEEK_SET) or Carp::croak("seek: $!");
     read($self->{fh}, my $buf, CENTRAL_HEADER_SIZE) == CENTRAL_HEADER_SIZE or Carp::croak("cannot seek");
-    substr($buf, 0, 4) ne "\x50\x4B\x01\x02" or Carp::croak("invalid header");
+    if ( substr( $buf, 0, 4 ) ne "\x50\x4B\x01\x02" ) {
+        Carp::confess(
+            sprintf( "invalid header signature: %08X ne %08X",
+                unpack_32( "\x50\x4B\x01\x02" ),
+                unpack_32( substr( $buf, 0, 4 ) ) )
+        );
+    }
     my $dosdt = substr( $buf, 12, 4 );
     my $size       = unpack_32( substr( $buf, 20, 4 ) );
     my $fname_len  = unpack_16( substr( $buf, 28, 2 ) );
-    my $ext_attr   = unpack_32( substr( $buf, 38, 4 ) );
+    my $external_file_attributes   = unpack_32( substr( $buf, 38, 4 ) );
     my $header_pos = unpack_32( substr( $buf, 42, 4 ) );
     read($self->{fh}, my $fname, $fname_len)==$fname_len or Carp::croak("cannot read file name from file");
 
@@ -86,18 +101,16 @@ sub next {
       # 38 pack_32($external_attr), # unsigned int outattr;
       # 42 pack_32($header_pos), # unsigned int headerpos;
 
-    seek($self->{fh}, SEEK_SET, $header_pos + HEADER_SIZE + $fname_len) or Carp::croak("Cannot seek to heaer pos");
-
-    $self->{next_central} = tell($self->{fh});
+    $self->{next_central} = $self->{next_central} + CENTRAL_HEADER_SIZE + $fname_len;
 
     return Archive::Zip::Uncompressed::Unpacker::Member->new(
         fh         => $self->{fh},
-        ext_attr   => $ext_attr,
+        external_file_attributes   => $external_file_attributes,
         size       => $size,
         header_pos => $header_pos,
         filename   => $fname,
         fname_len  => $fname_len,
-        'pos'      => $header_pos + $fname_len,
+        'pos'      => $header_pos + HEADER_SIZE + $fname_len,
     );
 }
 
@@ -115,16 +128,26 @@ sub read {
     my $self = $_[0];
     seek($self->{fh}, $self->{pos}, SEEK_SET) or Carp::croak("cannot seek: $!");
     my $buflen = $_[2];
-    if ($self->{header_pos} + $self->{fname_len} + $self->{size} < $self->{pos} + $buflen) {
-        $buflen = ($self->{header_pos} + $self->{fname_len} + $self->{size}) - $self->{pos};
+    if ( $self->{header_pos} +
+        Archive::Zip::Uncompressed::Unpacker::HEADER_SIZE() +
+        $self->{fname_len} +
+        $self->{size} < $self->{pos} +
+        $buflen )
+    {
+        $buflen =
+          ( $self->{header_pos} +
+              Archive::Zip::Uncompressed::Unpacker::HEADER_SIZE() +
+              $self->{fname_len} +
+              $self->{size} ) - $self->{pos};
     }
     read($self->{fh}, $_[1], $buflen);
 }
 
 BEGIN {
     no strict 'refs';
-    for (qw/ext_attr size filename/) {
-        *{__PACKAGE__ . '::' . $_ } = sub { $_[0]->{$_} }
+    for (qw/external_file_attributes size filename/) {
+        my $key = $_;
+        *{__PACKAGE__ . '::' . $_ } = sub { $_[0]->{$key} }
     }
 }
 
@@ -185,7 +208,7 @@ sub add_directory {
     my ($self, $fname) = @_;
     my $header_pos = tell($self->{fh});
     Carp::croak("tell: $fname, $!") if $header_pos == -1;
-    $fname .= '/' unless $fname =~ m{/$};
+    $fname .= '/' unless $fname =~ m{/$}; # XXX this is really required!
 
     my $stat = stat($fname) or die "Cannot call stat: '$fname'";
     my $crc32 = 0;
