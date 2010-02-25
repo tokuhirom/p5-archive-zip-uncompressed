@@ -141,3 +141,17 @@ BEGIN {
 }
 
 1;
+__END__
+
+=head1 NAME
+
+Archive::Zip::Uncompressed::Unpacker - uncompressed zip archive unpacker
+
+=head1 DESCRIPTION
+
+This class is part of Archive::Zip::Uncompressed distribution.
+
+=head1 AUTHOR
+
+Tokuhiro Matsuno
+

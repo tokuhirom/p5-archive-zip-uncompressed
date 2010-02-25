@@ -258,3 +258,17 @@ sub calc_crc32_from_file {
 }
 
 1;
+__END__
+
+=head1 NAME
+
+Archive::Zip::Uncompressed::Packer - uncompressed zip archive packer
+
+=head1 DESCRIPTION
+
+This class is part of Archive::Zip::Uncompressed distribution.
+
+=head1 AUTHOR
+
+Tokuhiro Matsuno
+
