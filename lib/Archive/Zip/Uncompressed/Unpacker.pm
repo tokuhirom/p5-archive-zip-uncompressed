@@ -1,4 +1,6 @@
 package Archive::Zip::Uncompressed::Unpacker;
+use strict;
+use warnings;
 use File::stat;
 use Fcntl ':seek';
 use constant {

@@ -1,4 +1,6 @@
 package Archive::Zip::Uncompressed::Packer;
+use strict;
+use warnings;
 use File::stat;
 use Fcntl ':seek';
 use constant {
@@ -106,10 +108,12 @@ sub DESTROY {
 
 package # hide from pause
     Archive::Zip::Uncompressed::HeaderMaker;
+use strict;
+use warnings;
 
 use constant {
-    EXTERNAL_ATTR_DIRECTORY => ((040755 << 16) | 0x10),
-    EXTERNAL_ATTR_FILE      => (0100644 << 16),
+    EXTERNAL_ATTR_DIRECTORY => ((oct('040755') << 16) | 0x10),
+    EXTERNAL_ATTR_FILE      => (oct('0100644') << 16),
 };
 
 sub pack_16 { pack('v', $_[0]) }
