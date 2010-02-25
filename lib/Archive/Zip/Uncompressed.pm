@@ -166,8 +166,6 @@ sub make_central_directory_file_header {
     my ($class, $file_header_body, $external_attr, $header_pos, $fname) = @_;
     return join(
         '',
-        # amachang: 0x02014b50
-        # 504B0102
         "\x50\x4B\x01\x02", # unsigned int signature;
         pack_16(0x0314),    # unsigned short madever;
         $file_header_body,
@@ -267,7 +265,6 @@ sub calc_crc32_from_file {
     return $result;
 }
 
-
 1;
 __END__
 
@@ -304,6 +301,8 @@ Archive::Zip::Uncompressed is
 Tokuhiro Matsuno E<lt>tokuhirom AAJKLFJEF GMAIL COME<gt>
 
 =head1 SEE ALSO
+
+L<http://www.pkware.com/documents/casestudies/APPNOTE.TXT>, L<Archive::Zip>
 
 =head1 LICENSE
 
